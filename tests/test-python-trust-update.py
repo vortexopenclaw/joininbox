@@ -11,11 +11,13 @@ import re
 import subprocess
 import sys
 
+from python_trust_source import public_installer
+
 repo = Path(__file__).resolve().parents[1]
 jm = Path(sys.argv[1])
 work = Path(sys.argv[2]).absolute()
 work.mkdir(parents=True, exist_ok=True)
-original = subprocess.check_output(["git", "-C", str(jm), "show", "v0.9.12:install.sh"], text=True)
+original = public_installer(jm)
 fixture = work / "original-install.sh"
 fixture.write_text(original)
 text = (repo / "scripts/install.joinmarket.sh").read_text()
