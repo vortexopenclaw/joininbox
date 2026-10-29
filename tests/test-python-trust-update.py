@@ -99,7 +99,8 @@ for mode in ("install", "update", "testPR", "commit"):
         if failure:
             assert "# installed JoinMarket" not in p.stdout, p.stdout
         patched = (home / "joinmarket-clientserver/install.sh").read_text()
-        assert "'certifi>=2026.10.19'" in patched
+        assert 'install-python-trust.py" upgrade-app || return 1' in patched
+        assert "pip install --upgrade 'certifi" not in patched
         results.append(mode + ":" + str(failure))
         print("PASS " + results[-1])
 

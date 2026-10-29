@@ -1,5 +1,5 @@
 diff --git a/install.sh b/install.sh
-index 2e53081..85f3b97 100755
+index 2e53081..5a8459e 100755
 --- a/install.sh
 +++ b/install.sh
 @@ -181,22 +181,28 @@ check_skip_build ()
@@ -44,15 +44,14 @@ index 2e53081..85f3b97 100755
      fi
      if [[ ${build_local_tor} == "1" ]]; then
          if ! tor_deps_install; then
-@@ -641,6 +647,11 @@ main ()
+@@ -641,6 +647,10 @@ main ()
          if [ "$with_jmvenv" == 1 ]; then deactivate; fi
          return 1
      fi
-+    # A constrained resolver can successfully leave old application CA roots.
++    # Repair application CA roots only when standalone certifi is installed.
 +    local trust_python="${python}"
 +    if [ "$with_jmvenv" == 1 ]; then trust_python="${jm_source}/jmvenv/bin/python"; fi
-+    "${trust_python}" -m pip install --upgrade 'certifi>=2026.10.19' || return 1
-+    "${trust_python}" "${jm_source}/install-python-trust.py" app || return 1
++    "${trust_python}" "${jm_source}/install-python-trust.py" upgrade-app || return 1
      if [ "$with_jmvenv" == 1 ]; then
          deactivate
          echo "Joinmarket successfully installed

@@ -50,8 +50,8 @@ assert 'install-python-trust.py" bootstrap' in text
 assert '+        return "$?"' in text
 assert '+    return "$setup_status"' in text
 assert '+        upgrade_setuptools || return 1' in text
-assert "'certifi>=2026.10.19' || return 1" in text
-assert 'install-python-trust.py" app || return 1' in text
+assert 'install-python-trust.py" upgrade-app || return 1' in text
+assert "pip install --upgrade 'certifi" not in text
 PY
   [ "$status" -eq 0 ]
 }

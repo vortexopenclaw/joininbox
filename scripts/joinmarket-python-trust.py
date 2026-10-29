@@ -26,6 +26,16 @@ def check_bundle(bundle):
     ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).load_verify_locations(str(bundle))
 
 
+def application_certifi():
+    try:
+        import certifi
+    except ModuleNotFoundError as error:
+        if error.name != "certifi":
+            raise
+        return None
+    return certifi
+
+
 def check(app=False):
     from pip._vendor import certifi
     check_bundle(certifi.where())
@@ -40,8 +50,9 @@ def check(app=False):
     if {hashlib.sha256(c).hexdigest() for c in roots} & BLOCKED:
         raise RuntimeError("Affected eMudhra SSL root in system trust; update ca-certificates")
     if app:
-        import certifi as application_certifi
-        check_bundle(application_certifi.where())
+        certifi = application_certifi()
+        if certifi is not None:
+            check_bundle(certifi.where())
 
 
 def safe_pip(arguments):
@@ -96,6 +107,14 @@ def main():
         bootstrap()
     elif mode == "prerequisites":
         safe_pip(["install", "libtool", "asn1crypto", "cffi", "pycparser"])
+    elif mode == "upgrade-app":
+        check()
+        # certifi is optional: Twisted-only installations use the OS roots.
+        # Without --upgrade an already-fixed package is left alone. Constraints
+        # remain in force, including when the installed package needs repair.
+        if application_certifi() is not None:
+            safe_pip(["install", "certifi>=2026.10.19"])
+        subprocess.run([sys.executable, __file__, "app"], check=True)
     elif mode in ("check", "app"):
         check(app=mode == "app")
     else:

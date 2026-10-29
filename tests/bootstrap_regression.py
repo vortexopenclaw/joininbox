@@ -115,8 +115,16 @@ try:
         python = venv("positive-" + version, version)
         run([python, HELPER, "bootstrap"], BASE)
         assert run([python, "-c", "import pip;print(pip.__version__)"], BASE).strip() == "26.2.2"
+        run([python, HELPER, "app"], BASE)
+        run([python, HELPER, "upgrade-app"], BASE)
+        assert run([python, "-c", "import importlib.util;print(importlib.util.find_spec('certifi'))"], BASE).strip() == "None"
+        record("pip " + version + " absent application certifi accepted without installation")
         run([python, "-m", "pip", "install", "certifi>=2026.10.19"], BASE)
         run([python, HELPER, "app"], BASE)
+        snapshot = "import certifi,pathlib,hashlib;p=pathlib.Path(certifi.where());print(hashlib.sha256(p.read_bytes()).hexdigest(),p.stat().st_mtime_ns)"
+        before = run([python, "-c", snapshot], BASE)
+        run([python, HELPER, "upgrade-app"], BASE)
+        assert run([python, "-c", snapshot], BASE) == before
         record("pip " + version + " actual HTTPS bootstrap and application roots")
 
         python = venv("negative-" + version, version)
@@ -165,10 +173,26 @@ try:
     assert "Affected eMudhra SSL root" in output, output
     app_constraint = WORK / "app-constraint.txt"
     app_constraint.write_text("certifi==2025.8.3\n")
-    output = run([python, "-m", "pip", "install", "--upgrade", "certifi>=2026.10.19"],
+    output = run([python, HELPER, "upgrade-app"],
                  dict(BASE, PIP_CONSTRAINT=app_constraint.as_uri()), ok=False)
     assert "ResolutionImpossible" in output or "conflicting dependencies" in output, output
+    run([python, HELPER, "app"], BASE, ok=False)
     record("stale application certifi and its resolver constraint fail closed")
+    app_constraint.write_text("certifi==2026.10.19\n")
+    run([python, HELPER, "upgrade-app"], dict(BASE, PIP_CONSTRAINT=app_constraint.as_uri()))
+    run([python, HELPER, "app"], BASE)
+    assert run([python, "-c", "import certifi;print(certifi.__version__)"], BASE).strip() == "2026.10.19"
+    record("present affected application certifi repaired and rechecked in new interpreter")
+
+    for statement, message in (("import missing_certifi_dependency", "missing_certifi_dependency"),
+                               ("raise ImportError('broken certifi import')", "broken certifi import")):
+        shadow = WORK / message.replace(" ", "-")
+        shadow.mkdir()
+        (shadow / "certifi.py").write_text(statement + "\n")
+        for mode in ("app", "upgrade-app"):
+            output = run([python, HELPER, mode], dict(BASE, PYTHONPATH=str(shadow)), ok=False)
+            assert message in output, output
+        record("unexpected application import error fails closed: " + message)
 
     # Verify the last Python 3.8/3.9 pip releases really have affected roots.
     import zipfile
@@ -213,8 +237,42 @@ try:
         shell = ('source "$1"; jm_source="$2"; python="$3"; '
                  'check_skip_build() { ' + ('return 0' if reuse else 'return 1') + '; }; venv_setup')
         run(["bash", "-c", shell, "test", functions, fixture, sys.executable], BASE)
-        run([fixture / "jmvenv/bin/python", HELPER, "check"], BASE)
-        record("executed installer venv_setup " + ("reuse" if reuse else "fresh"))
+        app_python = fixture / "jmvenv/bin/python"
+        run([app_python, HELPER, "app"], BASE)
+        # Execute the actual post-install repair line, not a duplicate command.
+        repair = next(line for line in source.splitlines() if 'install-python-trust.py" upgrade-app' in line)
+        run(["bash", "-c", 'jm_source="$1"; trust_python="$2"; ' + repair,
+             "test", fixture, app_python], BASE)
+        assert run([app_python, "-c", "import importlib.util;print(importlib.util.find_spec('certifi'))"], BASE).strip() == "None"
+        record("executed installer venv_setup and absent-certifi postcondition " + ("reuse" if reuse else "fresh"))
+
+    # Execute the actual owner's installed early-return block with real Python;
+    # only the home path and sudo boundary are replaced with scratch-local ones.
+    owner = (REPO / "scripts/install.joinmarket.sh").read_text()
+    early = owner[owner.index('if [ "$install" = "install" ]; then\n  # install joinmarket'):
+                  owner.index('if [ "$install" = "update" ]; then\n  stopYG')]
+    early = early.replace("/home/", str(WORK / "early-home") + "/")
+    home = WORK / "early-home/test/joinmarket-clientserver"
+    home.mkdir(parents=True)
+    (home / "jmvenv").symlink_to(WORK / "installer-fresh/jmvenv", target_is_directory=True)
+    early_python = home / "jmvenv/bin/python"
+    shell = 'install=install; user=test; currentJMversion=v0.9.12; trust_sudo=(); trust_scripts="$1"; ' + early
+    run(["bash", "-c", shell, "test", HELPER.parent], BASE)
+    assert run([early_python, "-c", "import importlib.util;print(importlib.util.find_spec('certifi'))"], BASE).strip() == "None"
+    record("actual owner early-return accepts absent certifi without installing it")
+    run([early_python, "-m", "pip", "install", "certifi==2025.8.3"], BASE)
+    output = run(["bash", "-c", shell, "test", HELPER.parent], BASE, ok=False)
+    assert "Affected eMudhra SSL root" in output and "is installed" not in output, output
+    record("actual owner early-return rejects present affected certifi")
+    run([early_python, HELPER, "upgrade-app"], BASE)
+    run(["bash", "-c", shell, "test", HELPER.parent], BASE)
+    record("actual owner early-return accepts present fixed certifi")
+
+    for version in ((3, 8), (3, 9)):
+        output = run([python, "-c", "import runpy,sys; m=runpy.run_path(%r);sys.version_info=%r;m['bootstrap']()" %
+                      (str(HELPER), version)], BASE, ok=False)
+        assert "requires Python >=3.10" in output, output
+        record("explicit Python %d.%d bootstrap policy gate preserved" % version)
 
     for reuse in (False, True):
         fixture = WORK / ("installer-reuse-failure" if reuse else "installer-fresh-failure")
@@ -237,6 +295,12 @@ try:
     output = run([python, HELPER, "bootstrap"], dict(BASE, PIP_CERT=bundle), ok=False)
     assert "Affected eMudhra SSL root" in output, output
     record("actual affected vendor roots rejected as bootstrap CA")
+    output = run([old, HELPER, "app"], BASE, ok=False)
+    assert "Affected eMudhra SSL root" in output, output
+    absent_python = WORK / "installer-reuse/jmvenv/bin/python"
+    output = run([absent_python, HELPER, "app"], dict(BASE, PIP_CERT=bundle), ok=False)
+    assert "Affected eMudhra SSL root" in output, output
+    record("absent certifi does not bypass pip or explicit CA checks")
 finally:
     server.shutdown()
     (WORK / "results.json").write_text(json.dumps(RESULTS, indent=2))

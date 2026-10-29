@@ -6,8 +6,8 @@ inside the newly created environment. The installer now applies a small local
 backport after ref selection and the existing source-verification step, before
 executing it. Normal pinned install/update paths retain signature verification;
 explicit development/PR paths keep their existing trust policy unchanged. It checks
-pip and application certifi again before declaring the update successful and on
-the already-installed early-return path. The initial system-pip prerequisites use
+pip and optional application certifi again before declaring the update successful
+and on the already-installed early-return path. The initial system-pip prerequisites use
 the same checked, file-based CA bootstrap without upgrading Debian's pip.
 
 The backport targets JoinMarket `v0.9.12` at
@@ -40,7 +40,15 @@ pip is temporarily switched out of additive truststore only during bootstrap;
 normal verified TLS remains in use afterward.
 
 Postconditions inspect pip's vendored certifi, explicit CA files, OpenSSL's loaded
-default roots, and application certifi. They are not a native Keychain audit or
+default roots, and application certifi when installed. Standalone certifi is not
+required by a Twisted-only JoinMarket environment: absence is accepted only after
+the pip, explicit-CA, and OS-root checks pass. The installer never adds certifi to
+such an environment just to satisfy the checker. If certifi is present, it applies
+the fixed minimum through the same policy-preserving pip wrapper and then checks
+the actual bundle in a fresh interpreter. An already-fixed satisfying package is
+not upgraded; conflicting constraints remain fatal. Missing transitive imports or
+other unexpected import failures are not treated as optional-package absence.
+These checks are not a native Keychain audit or
 an enumeration of lazy OpenSSL CA directories. This patch is scoped to the
 JoinMarket updater, not every standalone image-builder or package updater.
 
@@ -74,18 +82,25 @@ modified test CA bundles, wheel metadata, and `results.json` remain there.
 
 ### Coverage and boundaries
 
-- `tests/bootstrap_regression.py`: **20 checks** using the actual owned
+- `tests/bootstrap_regression.py`: **31 checks** using the actual owned
   `scripts/joinmarket-python-trust.py`, not a second production implementation.
   Genuine pip 23.3.2 and 26.2.1 upgrade to 26.2.2 over local HTTPS; controls cover
   wrong CA rejection despite an accepted-before injected vendor root, modern
   additive truststore, Requests CA precedence, stale pip/certifi constraints,
   TLS bypass rejection, and affected actual wheel bundles. Wheels are fetched
   from the exact URL in PyPI metadata and checked against its SHA-256.
-  Only installer-function cases apply the owned 58-line backport with
+  Only installer-function cases apply the owned 57-line backport with
   `--batch --forward --fuzz=0` to a scratch copy of public `install.sh`.
   Fresh/reused `venv_setup` and failure propagation run for real; the skip-build
-  decision is stubbed, native builds and installer `main` are not run. The helper
-  is copied unchanged under the installer's expected filename in test venv
+  decision is stubbed, native builds and installer `main` are not run. Absent
+  certifi is accepted without installation in fresh/reused environments; present
+  old certifi fails checks, rejects conflicting constraints, and repairs with safe
+  constraints. Fixed certifi passes without changing its bundle hash or mtime.
+  The real owner's installed early-return block is also executed with real Python
+  for absent, affected, and fixed certifi, replacing only home paths and sudo.
+  Unexpected direct and transitive import errors fail closed. Python 3.8/3.9
+  policy guards are exercised with simulated version tuples (not old interpreters).
+  The helper is copied unchanged under the installer's expected filename in test venv
   fixtures. One future-capability case explicitly mocks pip's advertised parser
   capability. Local TLS controls simulate trust paths, not an incident-host probe.
 - `tests/test-python-trust-update.py`: **13 checks** execute the real owner
@@ -99,10 +114,11 @@ modified test CA bundles, wheel metadata, and `results.json` remain there.
   verification behavior. They need neither `/home` nor a device. This selected
   set is not the entire Bats suite.
 
-The self-contained harness adaptation passed 20 bootstrap checks on Python
-3.11, 13 owner checks, and all 17 selected Bats checks. Earlier reference-harness
-runs covered Python 3.10–3.13; those four versions were not all rerun for this
-harness-only adaptation.
+The optional-certifi regression run passed 31 bootstrap checks on Python
+3.11, 13 owner checks, and all 17 selected Bats checks with Python 3.11 on PATH.
+Earlier reference-harness runs covered Python 3.10–3.13; those four versions were
+not all rerun for this
+optional-certifi change.
 
 ### Additional Debian retrieval evidence
 
@@ -121,7 +137,7 @@ Do not conflate those two retrieval results.
 No full native JoinMarket build, Raspberry Pi deployment, actual owner update,
 live incident-host probe, or SSH operation is claimed. Python 3.8/3.9 support
 remains an explicit maintainer release gate, not hidden compatibility. Outer
-RaspiBlitz sudo policy preservation and approved release/tag linkage are separate
-integration gates; this owner test set does not certify them. This is a public
+RaspiBlitz sudo policy preservation and approved release/tag linkage (`JBTAG`)
+are separate integration gates; this owner test set does not certify them. This is a public
 CA-incident remediation, not a claim of a new private JoininBox vulnerability.
 Repository security-reporting policy still applies to genuinely new findings.
