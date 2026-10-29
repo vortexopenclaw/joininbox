@@ -134,9 +134,16 @@ byte-identical**. That is not whole-wheel PyPI hash identity. A separate retriev
 from the exact official PyPI metadata URL passed its published SHA-256 check.
 Do not conflate those two retrieval results.
 
-No full native JoinMarket build, Raspberry Pi deployment, actual owner update,
-live incident-host probe, or SSH operation is claimed. Python 3.8/3.9 support
-remains an explicit maintainer release gate, not hidden compatibility. Outer
+The final optional-certifi helper was also executed on the actual Debian
+Raspberry Pi as the installed JoinMarket user, in both `app` and `upgrade-app`
+modes. Both passed with standalone certifi absent before and after, and the
+installed package-metadata fingerprint remained identical. This validates the
+healthy Twisted-only path without adding an unused dependency. The helper was
+staged for this check, not deployed as an owner installer.
+
+No full native JoinMarket build, actual owner update, or new live incident-host
+probe is claimed. Python 3.8/3.9 support remains an explicit maintainer release
+gate, not hidden compatibility. Outer
 RaspiBlitz sudo policy preservation and approved release/tag linkage (`JBTAG`)
 are separate integration gates; this owner test set does not certify them. This is a public
 CA-incident remediation, not a claim of a new private JoininBox vulnerability.
