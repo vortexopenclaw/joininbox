@@ -138,8 +138,12 @@ The final optional-certifi helper was also executed on the actual Debian
 Raspberry Pi as the installed JoinMarket user, in both `app` and `upgrade-app`
 modes. Both passed with standalone certifi absent before and after, and the
 installed package-metadata fingerprint remained identical. This validates the
-healthy Twisted-only path without adding an unused dependency. The helper was
-staged for this check, not deployed as an owner installer.
+healthy Twisted-only path without adding an unused dependency. A separate,
+version-specific backport was then applied to the installed legacy owner's
+repository script, copied launcher, and current JoinMarket installer without
+changing their release pins. The existing owner's self-update is temporarily
+paused because resetting to the old signed tag would otherwise erase the fix;
+a maintained, signed release containing this repair is still required.
 
 No full native JoinMarket build, actual owner update, or new live incident-host
 probe is claimed. Python 3.8/3.9 support remains an explicit maintainer release
