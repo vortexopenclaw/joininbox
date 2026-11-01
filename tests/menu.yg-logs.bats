@@ -42,6 +42,10 @@ EOF
 printf '%s\n' "$@" >> "$TRACE"
 EOF
   printf '#!/bin/bash\nexit 0\n' > "$TEST_TMP/bin/sleep"
+  # _functions.sh queries versions at import time. Keep those unrelated probes
+  # deterministic on clean CI machines without a real checkout or Bitcoin Core.
+  printf '#!/bin/bash\nprintf "v0.0.0\\n"\n' > "$TEST_TMP/bin/git"
+  printf '#!/bin/bash\nprintf "Bitcoin Core version v0.0.0\\n"\n' > "$TEST_TMP/bin/bitcoind"
   # Process state must not turn an arbitrary newest logfile into a current maker.
   printf '#!/bin/bash\nprintf "4242\\n"\n' > "$TEST_TMP/bin/pgrep"
   chmod +x "$TEST_TMP/bin/"*
