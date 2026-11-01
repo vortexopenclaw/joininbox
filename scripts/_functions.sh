@@ -271,7 +271,7 @@ function latestJMlog() {
 function YGnickname() {
   # Historical NickServ observation; neither role nor current activity is known.
   local newest_log name
-  newest_log=$(latestJMlog)
+  newest_log=$(latestJMlog) || newest_log=""
   if [ -n "$newest_log" ] && [ -f "$newest_log" ]; then
     name=$(grep NickServ "$newest_log" 2>/dev/null | tail -1 | awk '{print $9}')
     if [ ${#name} -eq 0 ]; then

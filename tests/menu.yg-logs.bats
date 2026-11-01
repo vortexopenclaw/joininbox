@@ -134,6 +134,12 @@ run_menu() {
   [[ "$output" == *no_Nick_see_LOGS* ]]
 }
 
+@test "nickname keeps its missing-log fallback with errexit enabled" {
+  run bash -e -c 'source /home/joinmarket/_functions.sh; YGnickname'
+  [ "$status" -eq 0 ]
+  [[ "$output" == *waiting__to__run* ]]
+}
+
 @test "the real tail reads a spaced logfile through the production menu" {
   make_log 'J5 maker.log' J5realTail 202601010000
   export REAL_TAIL=yes
