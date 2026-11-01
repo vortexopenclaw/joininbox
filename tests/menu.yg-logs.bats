@@ -135,7 +135,7 @@ run_menu() {
 }
 
 @test "nickname keeps its missing-log fallback with errexit enabled" {
-  run bash -e -c 'source /home/joinmarket/_functions.sh; YGnickname'
+  run bash -c 'source /home/joinmarket/_functions.sh; set -e; YGnickname'
   [ "$status" -eq 0 ]
   [[ "$output" == *waiting__to__run* ]]
 }
